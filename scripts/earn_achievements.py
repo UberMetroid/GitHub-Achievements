@@ -3,9 +3,14 @@
 
 Local helper to plan *legitimate* GitHub achievement progress.
 
-- Generates real work items (issues/PR templates) to pursue achievements.
-- Tracks progress by querying GitHub via `gh`.
+- Generates real work items (issues) to pursue achievements.
+- Tracks basic progress via GitHub API + search.
 - Never automates spam or fake activity.
+
+Usage:
+  earn_achievements.py status   # Show basic status + progress
+  earn_achievements.py seed     # Create legitimate action issues (no prompt)
+  earn_achievements.py auto     # Run status + seed
 """
 import json
 import subprocess
@@ -26,17 +31,37 @@ def gh_json(args: List[str]) -> Dict:
     return json.loads(proc.stdout)
 
 
+def list_open_issue_titles() -> List[str]:
+    data = gh_json(["issue", "list", "--repo", REPO, "--state", "open", "--json", "title"])
+    return [i.get("title", "") for i in data]
+
+
 def status():
-    # Basic stats from GitHub API (placeholder; can be expanded)
     data = gh_json(["api", "user"])
     user = data.get("login")
-    print(f"GitHub user: {user}")
-    print("\nAchievements progress should be tracked manually or via repo metrics.")
-    print("(Extend this script with specific repo/org queries as needed.)")
+    print(f"GitHub user: {user}\n")
+
+    def search_count(query: str):
+        try:
+            data = gh_json(["api", "/search/issues", "-f", f"q={query}"])
+            return int(data.get("total_count", 0))
+        except Exception:
+            return "(unavailable)"
+
+    pull_shark = search_count(f"is:pr is:merged author:{user}")
+    pair_extra = search_count(f"is:pr is:merged author:{user} co-authored-by")
+
+    galaxy_brain = "(manual)"
+    starstruck = "(manual)"
+
+    print("Progress (best-effort):")
+    print(f"- Pull Shark (merged PRs): {pull_shark}")
+    print(f"- Pair Extraordinaire (approx co-authored PRs): {pair_extra}")
+    print(f"- Galaxy Brain (accepted answers): {galaxy_brain}")
+    print(f"- Starstruck (stars): {starstruck}\n")
 
 
 def seed():
-    # Create legitimate issues to drive action (opt-in)
     issues = [
         ("Pull Shark: find 2 good starter issues", "List 2 repos/issues to open legit PRs."),
         ("Galaxy Brain: answer 2 Q&A discussions", "Find 2 unanswered Q&A discussions and respond with helpful answers."),
@@ -47,7 +72,10 @@ def seed():
         ("Public Sponsor: pick a project to sponsor", "Choose a project and confirm sponsorship plan."),
     ]
 
+    existing = set(list_open_issue_titles())
     for title, body in issues:
+        if title in existing:
+            continue
         proc = run(["gh", "issue", "create", "--repo", REPO, "--title", title, "--body", body])
         if proc.returncode == 0:
             print(proc.stdout.strip())
@@ -59,6 +87,7 @@ def help():
     print("Usage:")
     print("  earn_achievements.py status   # Show basic status")
     print("  earn_achievements.py seed     # Create legitimate action issues")
+    print("  earn_achievements.py auto     # Run status + seed")
 
 
 def main():
@@ -69,6 +98,9 @@ def main():
     if cmd == "status":
         status()
     elif cmd == "seed":
+        seed()
+    elif cmd == "auto":
+        status()
         seed()
     else:
         help()
