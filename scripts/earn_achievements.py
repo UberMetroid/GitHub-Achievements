@@ -114,6 +114,51 @@ def get_coauthored_prs_count(user: str) -> str:
         return "(unavailable)"
 
 
+def get_total_stars(user: str) -> str:
+    try:
+        repos = gh_json(["api", f"/users/{user}/repos", "--paginate"])
+        total = sum(r.get("stargazers_count", 0) for r in repos)
+        return str(total)
+    except Exception:
+        return "(unavailable)"
+
+
+def get_public_repos(user: str) -> str:
+    try:
+        data = gh_json(["api", f"/users/{user}"])
+        return str(data.get("public_repos", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def get_followers(user: str) -> str:
+    try:
+        data = gh_json(["api", f"/users/{user}"])
+        return str(data.get("followers", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def get_following(user: str) -> str:
+    try:
+        data = gh_json(["api", f"/users/{user}"])
+        return str(data.get("following", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def get_total_contributions(user: str) -> str:
+    try:
+        data = gh_json(["api", f"/users/{user}/events?per_page=100"])
+        contributions = 0
+        for event in data:
+            if event.get("type") in ["PushEvent", "PullRequestEvent", "IssuesEvent", "IssueCommentEvent"]:
+                contributions += 1
+        return f"~{contributions} (last 100 events)"
+    except Exception:
+        return "(unavailable)"
+
+
 def cmd_status(args):
     if not check_gh_installed():
         print("Error: GitHub CLI (gh) is not installed.", file=sys.stderr)
@@ -133,6 +178,11 @@ def cmd_status(args):
 
     pull_shark = get_merged_prs_count(user)
     pair_extra = get_coauthored_prs_count(user)
+    total_stars = get_total_stars(user)
+    public_repos = get_public_repos(user)
+    followers = get_followers(user)
+    following = get_following(user)
+    contributions = get_total_contributions(user)
 
     print("=== Achievement Badges ===")
     print("PR-Based:")
@@ -144,12 +194,17 @@ def cmd_status(args):
     print(f"  Galaxy Brain (accepted answers): (manual)")
     print(f"  Public Sponsor: (manual)")
     print("\nProfile:")
-    print(f"  Starstruck (repo stars): (manual)")
-    print(f"  Hacker (public repo): (manual)")
+    print(f"  Starstruck (total stars): {total_stars}")
+    print(f"  Hacker (public repos): {public_repos}")
     print(f"  Founder (first repo): (manual)")
     print(f"  Developer (profile pic): (manual)")
-    print(f"  Llama (1000 contributions/year): (manual)")
+    print(f"  Llama (contributions): {contributions}")
     print(f"  Arctic Code Vault (2020 contributors): (manual - one-time)")
+    print("\n=== Profile Stats ===")
+    print(f"  Followers: {followers}")
+    print(f"  Following: {following}")
+    print(f"  Public Repos: {public_repos}")
+    print(f"  Total Stars: {total_stars}")
     print()
     return 0
 
