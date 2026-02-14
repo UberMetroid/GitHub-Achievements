@@ -12,7 +12,10 @@ Usage:
   earn_achievements.py seed     # Create legitimate action issues
   earn_achievements.py auto     # Run status + seed
   earn_achievements.py config   # Show/edit configuration
+  earn_achievements.py --version  # Show version
 """
+__version__ = "1.0.0"
+
 import argparse
 import json
 import os
@@ -314,8 +317,10 @@ Examples:
   %(prog)s auto           Run status then seed
   %(prog)s config         Show configuration
   %(prog)s config --set-repo myname/myrepo
+  %(prog)s --version      Show version
 """
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     subparsers.add_parser("status", help="Show achievement progress")
