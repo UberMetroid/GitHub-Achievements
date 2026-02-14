@@ -32,6 +32,11 @@ DEFAULT_CONFIG = {
         "quickdraw": {"enabled": True},
         "yolo": {"enabled": True},
         "public_sponsor": {"enabled": True},
+        "hacker": {"enabled": True},
+        "founder": {"enabled": True},
+        "developer": {"enabled": True},
+        "llama": {"threshold": [1000], "enabled": True},
+        "arctic_code_vault": {"enabled": True},
     }
 }
 
@@ -129,14 +134,22 @@ def cmd_status(args):
     pull_shark = get_merged_prs_count(user)
     pair_extra = get_coauthored_prs_count(user)
 
-    print("Progress (best-effort):")
-    print(f"- Pull Shark (merged PRs): {pull_shark}")
-    print(f"- Pair Extraordinaire (co-authored PRs): {pair_extra}")
-    print(f"- Galaxy Brain (accepted answers): (manual)")
-    print(f"- Starstruck (repo stars): (manual)")
-    print(f"- Quickdraw: (manual)")
-    print(f"- YOLO: (manual)")
-    print(f"- Public Sponsor: (manual)")
+    print("=== Achievement Badges ===")
+    print("PR-Based:")
+    print(f"  Pull Shark (merged PRs): {pull_shark}")
+    print(f"  Pair Extraordinaire (co-authored PRs): {pair_extra}")
+    print(f"  Quickdraw: (manual - close issue within 5 min)")
+    print(f"  YOLO: (manual - merge without review)")
+    print("\nCommunity:")
+    print(f"  Galaxy Brain (accepted answers): (manual)")
+    print(f"  Public Sponsor: (manual)")
+    print("\nProfile:")
+    print(f"  Starstruck (repo stars): (manual)")
+    print(f"  Hacker (public repo): (manual)")
+    print(f"  Founder (first repo): (manual)")
+    print(f"  Developer (profile pic): (manual)")
+    print(f"  Llama (1000 contributions/year): (manual)")
+    print(f"  Arctic Code Vault (2020 contributors): (manual - one-time)")
     print()
     return 0
 
@@ -148,13 +161,24 @@ def cmd_seed(args):
 
     repo = str(get_config_value("repo", "owner/repo"))
     issues = [
+        # PR-based achievements
         ("Pull Shark: find 2 good starter issues", "List 2 repos/issues to open legit PRs."),
-        ("Galaxy Brain: answer 2 Q&A discussions", "Find 2 unanswered Q&A discussions and respond with helpful answers."),
-        ("Starstruck: build a star-worthy repo", "Outline plan for a repo that solves a real problem."),
         ("Pair Extraordinaire: co-author a commit", "Coordinate a co-authored PR with a collaborator."),
         ("Quickdraw: open + close a small issue", "Create a tiny issue and close it quickly with a fix."),
-        ("YOLO: merge a PR without review (own repo only)", "Create a PR in your repo and merge without review if policy allows."),
+        ("YOLO: merge a PR without review", "Create a PR in your repo and merge without review if policy allows."),
+        
+        # Community achievements
+        ("Galaxy Brain: answer 2 Q&A discussions", "Find 2 unanswered Q&A discussions and respond with helpful answers."),
         ("Public Sponsor: pick a project to sponsor", "Choose a project and confirm sponsorship plan."),
+        
+        # Repo achievements
+        ("Starstruck: build a star-worthy repo", "Outline plan for a repo that solves a real problem."),
+        ("Hacker: create first public repo", "Create your first public repository."),
+        ("Founder: create first repo", "Create your first repository (public or private)."),
+        
+        # Profile achievements
+        ("Developer: set profile picture", "Upload a profile picture to your GitHub account."),
+        ("Llama: reach 1000 contributions", "Make 1000 contributions in a year - aim for consistent daily contributions."),
     ]
 
     existing = set(list_open_issue_titles(repo))
