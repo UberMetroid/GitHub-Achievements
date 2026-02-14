@@ -1,0 +1,2 @@
+# Python dependencies for GitHub Achievements tracker
+# No external dependencies required - uses only stdlib + gh CLI

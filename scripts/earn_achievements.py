@@ -9,59 +9,144 @@ Local helper to plan *legitimate* GitHub achievement progress.
 
 Usage:
   earn_achievements.py status   # Show basic status + progress
-  earn_achievements.py seed     # Create legitimate action issues (no prompt)
+  earn_achievements.py seed     # Create legitimate action issues
   earn_achievements.py auto     # Run status + seed
+  earn_achievements.py config   # Show/edit configuration
 """
+import argparse
 import json
+import os
 import subprocess
 import sys
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
-REPO = "UberMetroid/GitHub-Achievements"
+CONFIG_FILE = Path.home() / ".config" / "github-achievements" / "config.json"
+DEFAULT_CONFIG = {
+    "repo": "owner/repo",
+    "achievements": {
+        "pull_shark": {"threshold": [2, 16, 128, 1024], "enabled": True},
+        "galaxy_brain": {"threshold": [2, 8, 16, 32], "enabled": True},
+        "starstruck": {"threshold": [16, 128, 512, 4096], "enabled": True},
+        "pair_extraordinaire": {"threshold": [1, 10, 24, 48], "enabled": True},
+        "quickdraw": {"enabled": True},
+        "yolo": {"enabled": True},
+        "public_sponsor": {"enabled": True},
+    }
+}
 
 
-def run(cmd: List[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+def ensure_config_dir() -> None:
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+
+def load_config() -> Dict:
+    ensure_config_dir()
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    return DEFAULT_CONFIG.copy()
+
+
+def save_config(config: Dict) -> None:
+    ensure_config_dir()
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def get_config_value(key: str, default=None):
+    config = load_config()
+    keys = key.split(".")
+    value = config
+    for k in keys:
+        if isinstance(value, dict):
+            value = value.get(k, default)
+        else:
+            return default
+    return value
+
+
+def run(cmd: List[str], check: bool = True) -> subprocess.CompletedProcess:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+    return result
 
 
 def gh_json(args: List[str]) -> Dict:
-    proc = run(["gh"] + args)
+    proc = run(["gh"] + args, check=False)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or proc.stdout.strip())
     return json.loads(proc.stdout)
 
 
-def list_open_issue_titles() -> List[str]:
-    data = gh_json(["issue", "list", "--repo", REPO, "--state", "open", "--json", "title"])
-    return [i.get("title", "") for i in data]
+def check_gh_installed() -> bool:
+    try:
+        run(["gh", "--version"], check=False)
+        return True
+    except FileNotFoundError:
+        return False
 
 
-def status():
-    data = gh_json(["api", "user"])
-    user = data.get("login")
-    print(f"GitHub user: {user}\n")
+def list_open_issue_titles(repo: str) -> List[str]:
+    data = gh_json(["issue", "list", "--repo", repo, "--state", "open", "--json", "title"])
+    return [str(i.get("title", "")) for i in data]
 
-    def search_count(query: str):
-        try:
-            data = gh_json(["api", "/search/issues", "-f", f"q={query}"])
-            return int(data.get("total_count", 0))
-        except Exception:
-            return "(unavailable)"
 
-    pull_shark = search_count(f"is:pr is:merged author:{user}")
-    pair_extra = search_count(f"is:pr is:merged author:{user} co-authored-by")
+def get_merged_prs_count(user: str) -> str:
+    try:
+        data = gh_json(["api", "/search/issues", "-f", f"q=is:pr is:merged author:{user}"])
+        return str(data.get("total_count", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
 
-    galaxy_brain = "(manual)"
-    starstruck = "(manual)"
+
+def get_coauthored_prs_count(user: str) -> str:
+    try:
+        data = gh_json(["api", "/search/issues", "-f", f"q=is:pr is:merged author:{user} co-authored-by:{user}"])
+        return str(data.get("total_count", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def cmd_status(args):
+    if not check_gh_installed():
+        print("Error: GitHub CLI (gh) is not installed.", file=sys.stderr)
+        print("Install it from: https://cli.github.com/", file=sys.stderr)
+        return 1
+
+    try:
+        data = gh_json(["api", "user"])
+        user = str(data.get("login", ""))
+    except RuntimeError:
+        print("Error: Not authenticated with GitHub. Run 'gh auth login' first.", file=sys.stderr)
+        return 1
+
+    repo = str(get_config_value("repo", "owner/repo"))
+    print(f"GitHub user: {user}")
+    print(f"Tracking repo: {repo}\n")
+
+    pull_shark = get_merged_prs_count(user)
+    pair_extra = get_coauthored_prs_count(user)
 
     print("Progress (best-effort):")
     print(f"- Pull Shark (merged PRs): {pull_shark}")
-    print(f"- Pair Extraordinaire (approx co-authored PRs): {pair_extra}")
-    print(f"- Galaxy Brain (accepted answers): {galaxy_brain}")
-    print(f"- Starstruck (stars): {starstruck}\n")
+    print(f"- Pair Extraordinaire (co-authored PRs): {pair_extra}")
+    print(f"- Galaxy Brain (accepted answers): (manual)")
+    print(f"- Starstruck (repo stars): (manual)")
+    print(f"- Quickdraw: (manual)")
+    print(f"- YOLO: (manual)")
+    print(f"- Public Sponsor: (manual)")
+    print()
+    return 0
 
 
-def seed():
+def cmd_seed(args):
+    if not check_gh_installed():
+        print("Error: GitHub CLI (gh) is not installed.", file=sys.stderr)
+        return 1
+
+    repo = str(get_config_value("repo", "owner/repo"))
     issues = [
         ("Pull Shark: find 2 good starter issues", "List 2 repos/issues to open legit PRs."),
         ("Galaxy Brain: answer 2 Q&A discussions", "Find 2 unanswered Q&A discussions and respond with helpful answers."),
@@ -72,39 +157,81 @@ def seed():
         ("Public Sponsor: pick a project to sponsor", "Choose a project and confirm sponsorship plan."),
     ]
 
-    existing = set(list_open_issue_titles())
+    existing = set(list_open_issue_titles(repo))
+    created = 0
     for title, body in issues:
         if title in existing:
             continue
-        proc = run(["gh", "issue", "create", "--repo", REPO, "--title", title, "--body", body])
+        proc = run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body], check=False)
         if proc.returncode == 0:
-            print(proc.stdout.strip())
+            print(f"Created: {title}")
+            created += 1
         else:
-            print(proc.stderr.strip() or proc.stdout.strip())
+            print(f"Error creating '{title}': {proc.stderr.strip() or proc.stdout.strip()}")
+
+    if created == 0:
+        print("All achievement issues already exist.")
+    return 0
 
 
-def help():
-    print("Usage:")
-    print("  earn_achievements.py status   # Show basic status")
-    print("  earn_achievements.py seed     # Create legitimate action issues")
-    print("  earn_achievements.py auto     # Run status + seed")
+def cmd_config(args):
+    config = load_config()
+    
+    if args.set_repo:
+        config["repo"] = args.set_repo
+        save_config(config)
+        print(f"Repo set to: {args.set_repo}")
+        return 0
+    
+    if args.show:
+        print(json.dumps(config, indent=2))
+        return 0
+    
+    print(f"Config file: {CONFIG_FILE}")
+    print(f"Current repo: {config.get('repo', 'not set')}")
+    print("\nUse --set-repo <owner/repo> to change the tracked repository")
+    print("Use --show to see full config")
+    return 0
 
 
 def main():
-    if len(sys.argv) < 2:
-        help()
-        return
-    cmd = sys.argv[1]
-    if cmd == "status":
-        status()
-    elif cmd == "seed":
-        seed()
-    elif cmd == "auto":
-        status()
-        seed()
+    parser = argparse.ArgumentParser(
+        description="Track and plan legitimate GitHub achievements",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s status         Show achievement progress
+  %(prog)s seed           Create action items as issues
+  %(prog)s auto           Run status then seed
+  %(prog)s config         Show configuration
+  %(prog)s config --set-repo myname/myrepo
+"""
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    
+    subparsers.add_parser("status", help="Show achievement progress")
+    subparsers.add_parser("seed", help="Create action items as issues")
+    subparsers.add_parser("auto", help="Run status then seed")
+    
+    config_parser = subparsers.add_parser("config", help="Manage configuration")
+    config_parser.add_argument("--show", action="store_true", help="Show full config")
+    config_parser.add_argument("--set-repo", type=str, help="Set the tracked repository (owner/repo)")
+    
+    args = parser.parse_args()
+    
+    if args.command == "status":
+        return cmd_status(args)
+    elif args.command == "seed":
+        return cmd_seed(args)
+    elif args.command == "auto":
+        cmd_status(args)
+        return cmd_seed(args)
+    elif args.command == "config":
+        return cmd_config(args)
     else:
-        help()
+        parser.print_help()
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
