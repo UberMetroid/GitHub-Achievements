@@ -159,6 +159,30 @@ def get_total_contributions(user: str) -> str:
         return "(unavailable)"
 
 
+def get_total_prs(user: str) -> str:
+    try:
+        data = gh_json(["api", "/search/issues", "-f", f"q=is:pr author:{user}"])
+        return str(data.get("total_count", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def get_total_issues(user: str) -> str:
+    try:
+        data = gh_json(["api", "/search/issues", "-f", f"q=is:issue author:{user}"])
+        return str(data.get("total_count", 0))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
+def get_gists_count(user: str) -> str:
+    try:
+        data = gh_json(["api", f"/users/{user}/gists"])
+        return str(len(data))  # type: ignore[arg-type]
+    except Exception:
+        return "(unavailable)"
+
+
 def cmd_status(args):
     if not check_gh_installed():
         print("Error: GitHub CLI (gh) is not installed.", file=sys.stderr)
@@ -183,6 +207,9 @@ def cmd_status(args):
     followers = get_followers(user)
     following = get_following(user)
     contributions = get_total_contributions(user)
+    total_prs = get_total_prs(user)
+    total_issues = get_total_issues(user)
+    gists = get_gists_count(user)
 
     print("=== Achievement Badges ===")
     print("PR-Based:")
@@ -205,6 +232,9 @@ def cmd_status(args):
     print(f"  Following: {following}")
     print(f"  Public Repos: {public_repos}")
     print(f"  Total Stars: {total_stars}")
+    print(f"  Total PRs: {total_prs}")
+    print(f"  Total Issues: {total_issues}")
+    print(f"  Gists: {gists}")
     print()
     return 0
 

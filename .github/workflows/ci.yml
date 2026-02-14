@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
 
 jobs:
   test:
@@ -20,8 +22,8 @@ jobs:
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        python -m pip install --upgrade pip -r requirements.txt
+        pip install
         pip install -r requirements-dev.txt
     
     - name: Run tests
@@ -45,3 +47,28 @@ jobs:
       run: |
         pip install ruff
         ruff check scripts/ tests/
+
+  status:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gh
+    
+    - name: Check GitHub CLI
+      run: gh --version
+    
+    - name: Run status check
+      run: python3 scripts/earn_achievements.py status || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
