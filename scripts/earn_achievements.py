@@ -150,6 +150,28 @@ def get_following(user: str) -> str:
         return "(unavailable)"
 
 
+def get_year_contributions(user: str) -> str:
+    """Get total contributions for the current year using search API."""
+    try:
+        from datetime import datetime
+        year = datetime.now().year
+        
+        total = 0
+        
+        prs = gh_json(["api", "/search/issues", "-f", f"q=is:pr author:{user} created:{year}-01-01..{year}-12-31"])
+        total += prs.get("total_count", 0)
+        
+        issues = gh_json(["api", "/search/issues", "-f", f"q=is:issue author:{user} created:{year}-01-01..{year}-12-31"])
+        total += issues.get("total_count", 0)
+        
+        reviews = gh_json(["api", "/search/issues", "-f", f"q=is:pr review:approved author:{user} created:{year}-01-01..{year}-12-31"])
+        total += reviews.get("total_count", 0)
+        
+        return str(total)
+    except Exception:
+        return "(unavailable)"
+
+
 def get_total_contributions(user: str) -> str:
     try:
         data = gh_json(["api", f"/users/{user}/events?per_page=100"])
@@ -210,6 +232,7 @@ def cmd_status(args):
     followers = get_followers(user)
     following = get_following(user)
     contributions = get_total_contributions(user)
+    year_contributions = get_year_contributions(user)
     total_prs = get_total_prs(user)
     total_issues = get_total_issues(user)
     gists = get_gists_count(user)
@@ -228,7 +251,7 @@ def cmd_status(args):
     print(f"  Hacker (public repos): {public_repos}")
     print(f"  Founder (first repo): (manual)")
     print(f"  Developer (profile pic): (manual)")
-    print(f"  Llama (contributions): {contributions}")
+    print(f"  Llama (1000 contributions/year): {year_contributions} / 1000")
     print(f"  Arctic Code Vault (2020 contributors): (manual - one-time)")
     print("\n=== Profile Stats ===")
     print(f"  Followers: {followers}")
